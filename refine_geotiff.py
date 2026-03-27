@@ -45,6 +45,8 @@ def parse_args():
                         help="Save pre-FLUX preview PNG (after stretch+gamma)")
     parser.add_argument("--inverse_stretch", action="store_true",
                         help="Inverse p2/p98 stretch before saving (restore original value range)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility (default: 42)")
     parser.add_argument("--device", type=str, default="cuda:0")
     return parser.parse_args()
 
@@ -223,6 +225,14 @@ def main():
 
     assert args.tile_size % 16 == 0, "tile_size must be divisible by 16"
 
+    # Set seed for reproducibility
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Seed: {args.seed}")
+
     print(f"Input:  {args.input}")
     print(f"Output: {args.output}")
 
@@ -266,6 +276,9 @@ def main():
     weight_sum = np.zeros((h, w), dtype=np.float32)
 
     for idx, (y1, x1, y2, x2) in enumerate(tqdm(tiles, desc="Refining tiles")):
+        # Per-tile deterministic seed
+        torch.manual_seed(args.seed + idx)
+        torch.cuda.manual_seed_all(args.seed + idx)
         tile = img[y1:y2, x1:x2].copy()
         tile_h, tile_w = tile.shape[:2]
 
