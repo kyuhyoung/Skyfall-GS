@@ -21,7 +21,9 @@ for arg in "$@"; do
     fi
 done
 
-INPUT="/data/satellite/seoul/gangnam/samsung/gwarp_out_ps_ba/fused_top_naive.tif"
+# 241 서버 용 tif
+# INPUT="/data/satellite/seoul/gangnam/samsung/gwarp_out_ps_ba/fused_top_naive.tif"
+INPUT="/data/dataset/sat/korea/seoul/samsung/fused_top_naive.tif"
 INPUT_DIR="$(dirname "$INPUT")"
 INPUT_STEM="$(basename "$INPUT" .tif)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

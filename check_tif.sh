@@ -1,5 +1,7 @@
 #!/bin/bash
-TIF_PATH="${1:-/data/satellite/seoul/gangnam/samsung/gwarp_out_ps_ba/fused_top_naive.tif}"
+# 241 서버 용 tif
+# TIF_PATH="${1:-/data/satellite/seoul/gangnam/samsung/gwarp_out_ps_ba/fused_top_naive.tif}"
+TIF_PATH="${1:-/data/dataset/sat/korea/seoul/samsung/fused_top_naive.tif}"
 
 python -c "
 import rasterio

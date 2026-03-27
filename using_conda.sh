@@ -8,8 +8,10 @@
 
 set -e
 
-# Log file
-LOGFILE="$(dirname "$0")/using_conda.log"
+# Log file (timestamped per run)
+LOGDIR="$(dirname "$0")/logs"
+mkdir -p "$LOGDIR"
+LOGFILE="${LOGDIR}/using_conda_$(date '+%Y%m%d_%H%M%S').log"
 
 # Colors
 GREEN='\033[0;32m'
@@ -18,7 +20,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # Logging
-exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' > "$LOGFILE")) 2>&1
+exec > >(tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' >> "$LOGFILE")) 2>&1
 echo ""
 echo "========== $(date '+%Y-%m-%d %H:%M:%S') =========="
 
