@@ -66,6 +66,8 @@ def parse_args():
                         help="Random seed for reproducibility across tiles (default: 42)")
     parser.add_argument("--gamma", type=float, default=0.7)
     parser.add_argument("--save_preview", action="store_true")
+    parser.add_argument("--inverse_stretch", action="store_true",
+                        help="Inverse p2/p98 stretch before saving (restore original value range)")
 
     # FlowEdit params
     parser.add_argument("--n_min", type=int, default=0)
@@ -376,7 +378,8 @@ def main():
 
     # ── Save ──
     print(f"Saving to {args.output}...")
-    save_geotiff(args.output, output, profile, stretch_params)
+    save_geotiff(args.output, output, profile, stretch_params,
+                 inverse_stretch=getattr(args, 'inverse_stretch', False))
 
     elapsed = time.time() - t_start
     print(f"Done. Elapsed: {elapsed:.1f}s ({elapsed/60:.1f}min)")

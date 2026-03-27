@@ -43,6 +43,8 @@ def parse_args():
                         help="Gamma correction before FLUX (0=disable, default: 0.7)")
     parser.add_argument("--save_preview", action="store_true",
                         help="Save pre-FLUX preview PNG (after stretch+gamma)")
+    parser.add_argument("--inverse_stretch", action="store_true",
+                        help="Inverse p2/p98 stretch before saving (restore original value range)")
     parser.add_argument("--device", type=str, default="cuda:0")
     return parser.parse_args()
 
@@ -94,10 +96,27 @@ def read_geotiff(path):
     return data_f, profile, stretch_params
 
 
-def save_geotiff(path, data_float, profile, stretch_params):
-    """Save float32 0-1 image back to GeoTIFF as uint8."""
-    # Data is already 0-1 from the generation model, just scale to 0-255
-    data_out = np.clip(data_float * 255, 0, 255).astype(np.uint8)
+def save_geotiff(path, data_float, profile, stretch_params, inverse_stretch=False):
+    """Save float32 0-1 image back to GeoTIFF as uint8.
+
+    If inverse_stretch=True, restore original value range using p2/p98
+    before saving (preserves original satellite image distribution).
+    """
+    if inverse_stretch:
+        p2 = stretch_params["p2"]
+        p98 = stretch_params["p98"]
+        data_out = np.zeros_like(data_float)
+        for c in range(data_float.shape[2]):
+            data_out[:, :, c] = data_float[:, :, c] * (p98[c] - p2[c]) + p2[c]
+        data_out = np.clip(data_out, 0, 255).astype(np.uint8)
+        print(f"[save_geotiff] inverse stretch: p2={p2}, p98={p98}")
+    else:
+        data_out = np.clip(data_float * 255, 0, 255).astype(np.uint8)
+
+    # Restore nodata regions to 0
+    mask = stretch_params.get("mask")
+    if mask is not None and mask.any():
+        data_out[mask] = 0
 
     # (H, W, C) -> (C, H, W)
     data_out = data_out.transpose(2, 0, 1)
@@ -272,7 +291,8 @@ def main():
 
     # Save
     print(f"Saving to {args.output}...")
-    save_geotiff(args.output, output, profile, stretch_params)
+    save_geotiff(args.output, output, profile, stretch_params,
+                 inverse_stretch=args.inverse_stretch)
     print("Done.")
 
 

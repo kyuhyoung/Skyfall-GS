@@ -104,6 +104,7 @@ run_job() {
         --src_guidance "$sg" \
         --src_prompt "Satellite image with black missing regions, noise, blurring, and low resolution" \
         --tar_prompt "Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors" \
+        --inverse_stretch \
         > "${OUTPUT_DIR}/${TAG}.stdout.log" 2>&1
 
     echo -e "${GREEN}[${job_num}/${TOTAL}] GPU ${gpu_id}: n_max=${n_max}, tg=${tg}, sg=${sg} — DONE${NC}"
