@@ -66,8 +66,6 @@ def parse_args():
                         help="Random seed for reproducibility across tiles (default: 42)")
     parser.add_argument("--gamma", type=float, default=0.7)
     parser.add_argument("--save_preview", action="store_true")
-    parser.add_argument("--inverse_stretch", action="store_true",
-                        help="Inverse p2/p98 stretch before saving (restore original value range)")
 
     # FlowEdit params
     parser.add_argument("--n_min", type=int, default=0)
@@ -106,7 +104,8 @@ def get_gpu_ids(gpus_arg):
 
 def flowedit_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
     sys.path.append("submodules/FlowEdit")
-    from refine_geotiff import read_geotiff, refine_tile
+    from geotiff_utils import read_geotiff
+    from refine_geotiff import refine_tile
     from diffusers import FluxPipeline
 
     device = f"cuda:{gpu_id}"
@@ -142,7 +141,7 @@ def flowedit_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
 # ── Kontext worker ──
 
 def kontext_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
-    from refine_geotiff_kontext import read_geotiff
+    from geotiff_utils import read_geotiff
     from diffusers import FluxKontextPipeline
 
     device = f"cuda:{gpu_id}"
@@ -226,11 +225,9 @@ def main():
 
     # ── Read image ──
     print("Reading GeoTIFF...")
-    if method == "kontext":
-        from refine_geotiff_kontext import read_geotiff, save_geotiff, compute_tiles, make_blend_weight
-    else:
+    if method != "kontext":
         sys.path.append("submodules/FlowEdit")
-        from refine_geotiff import read_geotiff, save_geotiff, compute_tiles, make_blend_weight
+    from geotiff_utils import read_geotiff, save_geotiff, compute_tiles, make_blend_weight
 
     img, profile, stretch_params = read_geotiff(args.input)
     h, w, c = img.shape
@@ -378,8 +375,7 @@ def main():
 
     # ── Save ──
     print(f"Saving to {args.output}...")
-    save_geotiff(args.output, output, profile, stretch_params,
-                 inverse_stretch=getattr(args, 'inverse_stretch', False))
+    save_geotiff(args.output, output, profile, stretch_params)
 
     elapsed = time.time() - t_start
     print(f"Done. Elapsed: {elapsed:.1f}s ({elapsed/60:.1f}min)")

@@ -13,10 +13,9 @@ import os
 import argparse
 import numpy as np
 import torch
-import rasterio
 from PIL import Image
 from tqdm import tqdm
-from scipy.ndimage import distance_transform_edt
+from geotiff_utils import read_geotiff, save_geotiff, compute_tiles, make_blend_weight
 
 
 def parse_args():
@@ -44,112 +43,6 @@ def parse_args():
                         help="Save pre-processing preview PNG")
     parser.add_argument("--device", type=str, default="cuda:0")
     return parser.parse_args()
-
-
-def read_geotiff(path):
-    """Read GeoTIFF with simple cast: keep 0-255 as-is, stretch only if out of range."""
-    with rasterio.open(path) as src:
-        profile = src.profile.copy()
-        nodata = src.nodata
-        data = src.read()  # (C, H, W)
-
-    data = data.transpose(1, 2, 0).astype(np.float64)  # (H, W, C)
-
-    # Mask nodata and all-zero pixels → fill with 0
-    zero_mask = np.all(data == 0, axis=-1)
-    if nodata is not None:
-        nodata_mask = np.any(data == nodata, axis=-1)
-        mask = nodata_mask | zero_mask
-    else:
-        mask = zero_mask if zero_mask.any() else None
-
-    if mask is not None:
-        data[mask] = 0
-
-    # Simple cast: check if values are within 0-255
-    valid = data[~mask] if mask is not None else data.reshape(-1, 3)
-    val_min = valid.min()
-    val_max = valid.max()
-    print(f"[read_geotiff] value range: min={val_min}, max={val_max}")
-
-    stretched = False
-    if val_max > 255 or val_min < 0:
-        # Out of 0-255 range → percentile stretch
-        p2 = np.percentile(valid, 2, axis=0)
-        p98 = np.percentile(valid, 98, axis=0)
-        print(f"[read_geotiff] out of 0-255, applying percentile stretch: p2={p2}, p98={p98}")
-        stretched = True
-        for c in range(data.shape[2]):
-            rng = p98[c] - p2[c]
-            if rng < 1:
-                rng = 1
-            data[:, :, c] = (data[:, :, c] - p2[c]) / rng
-        data_f = np.clip(data, 0, 1).astype(np.float32)
-    else:
-        # Already 0-255 → simple cast to 0-1
-        print(f"[read_geotiff] within 0-255, simple cast")
-        p2 = np.zeros(data.shape[2])
-        p98 = np.full(data.shape[2], 255.0)
-        data_f = np.clip(data / 255.0, 0, 1).astype(np.float32)
-
-    stretch_params = {"p2": p2, "p98": p98, "mask": mask, "stretched": stretched}
-
-    # Fill nodata regions with nearest valid pixel
-    if mask is not None and mask.any():
-        _, nearest_idx = distance_transform_edt(mask, return_distances=True, return_indices=True)
-        for ch in range(data_f.shape[2]):
-            data_f[:, :, ch][mask] = data_f[:, :, ch][nearest_idx[0][mask], nearest_idx[1][mask]]
-        print(f"[read_geotiff] filled {mask.sum()} nodata pixels with nearest valid pixels")
-
-    return data_f, profile, stretch_params
-
-
-def save_geotiff(path, data_float, profile, stretch_params):
-    """Save float32 0-1 image back to GeoTIFF as uint8."""
-    data_out = np.clip(data_float * 255, 0, 255).astype(np.uint8)
-    data_out = data_out.transpose(2, 0, 1)  # (H, W, C) -> (C, H, W)
-
-    out_profile = profile.copy()
-    out_profile["dtype"] = "uint8"
-    out_profile["count"] = 3
-    out_profile["nodata"] = None
-    out_profile["compress"] = "lzw"
-
-    with rasterio.open(path, "w", **out_profile) as dst:
-        dst.write(data_out)
-
-
-def compute_tiles(h, w, tile_size, overlap):
-    """Compute tile positions (top, left) with overlap."""
-    step = tile_size - overlap
-    tiles = []
-    for y in range(0, h, step):
-        for x in range(0, w, step):
-            y_end = min(y + tile_size, h)
-            x_end = min(x + tile_size, w)
-            y_start = max(0, y_end - tile_size)
-            x_start = max(0, x_end - tile_size)
-            tiles.append((y_start, x_start, y_end, x_end))
-    tiles = list(set(tiles))
-    tiles.sort()
-    return tiles
-
-
-def make_blend_weight(tile_h, tile_w, overlap):
-    """Create smooth blending weights that taper at edges."""
-    weight = np.ones((tile_h, tile_w), dtype=np.float32)
-    if overlap <= 0:
-        return weight
-
-    ramp = np.linspace(0, 1, overlap)
-    for i in range(min(overlap, tile_h)):
-        weight[i, :] *= ramp[i]
-        weight[tile_h - 1 - i, :] *= ramp[i]
-    for i in range(min(overlap, tile_w)):
-        weight[:, i] *= ramp[i]
-        weight[:, tile_w - 1 - i] *= ramp[i]
-
-    return weight
 
 
 def refine_tile(pipe, tile_img, args):
