@@ -2,9 +2,14 @@
 
 # Skyfall-GS (FlowEdit) Conda Environment Setup Script
 #
+# Docker-like behavior:
+#   - Script unchanged → reuse existing env (instant)
+#   - Script changed   → recreate env from scratch
+#   - No env yet       → create env from scratch
+#
 # Usage:
-#   ./using_conda.sh            # create env + activate
-#   ./using_conda.sh -r         # activate existing env (fast)
+#   ./using_conda.sh            # auto-detect: reuse or rebuild
+#   ./using_conda.sh --force    # force rebuild even if unchanged
 
 set -e
 
@@ -25,15 +30,14 @@ echo ""
 echo "========== $(date '+%Y-%m-%d %H:%M:%S') =========="
 
 ENV_NAME=skyfall
-ENV_PATH=/data/kevin_workspace/envs/skyfall
+ENV_PATH=/media2/4tb/kevin/envs/skyfall
+HASH_FILE="${ENV_PATH}/.setup_hash"
 
-# Check for options
-REUSE=false
+# Options
+FORCE=false
 for arg in "$@"; do
     case $arg in
-        -r)
-            REUSE=true
-            ;;
+        --force) FORCE=true ;;
     esac
 done
 
@@ -46,38 +50,58 @@ fi
 # Source conda for subshell
 eval "$(conda shell.bash hook)"
 
-if [ "$REUSE" = true ]; then
-    if [ -d "${ENV_PATH}" ]; then
-        echo -e "${GREEN}Activating existing environment: ${ENV_PATH}${NC}"
-        exec 1>/dev/tty 2>/dev/tty
-        SHELL_NAME=$(basename "$SHELL")
-        if [ "$SHELL_NAME" = "fish" ]; then
-            exec fish -C "conda activate ${ENV_PATH}; echo -e '(${ENV_NAME}) environment active.'"
-        else
-            exec bash --rcfile <(echo "source ~/.bashrc; conda activate ${ENV_PATH}; echo -e '${GREEN}(${ENV_NAME}) environment active.${NC}'")
-        fi
+# Compute hash of this script
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+CURRENT_HASH=$(sha256sum "$SCRIPT_PATH" | cut -d' ' -f1)
+
+# Check if rebuild is needed
+NEED_BUILD=true
+if [ "$FORCE" = true ]; then
+    echo -e "${YELLOW}--force: rebuilding environment${NC}"
+elif [ ! -d "${ENV_PATH}" ]; then
+    echo -e "${YELLOW}Environment not found. Building...${NC}"
+elif [ ! -f "${HASH_FILE}" ]; then
+    echo -e "${YELLOW}No hash record found. Rebuilding...${NC}"
+else
+    SAVED_HASH=$(cat "${HASH_FILE}")
+    if [ "$CURRENT_HASH" = "$SAVED_HASH" ]; then
+        NEED_BUILD=false
+        echo -e "${GREEN}Script unchanged (hash match). Reusing existing environment.${NC}"
     else
-        echo -e "${RED}Environment not found at ${ENV_PATH}. Run without -r first.${NC}"
-        exit 1
+        echo -e "${YELLOW}Script changed (hash mismatch). Rebuilding...${NC}"
     fi
 fi
 
+# If no build needed, just activate and exit
+if [ "$NEED_BUILD" = false ]; then
+    exec 1>/dev/tty 2>/dev/tty
+    SHELL_NAME=$(basename "$SHELL")
+    if [ "$SHELL_NAME" = "fish" ]; then
+        exec fish -C "conda activate ${ENV_PATH}; echo -e '(${ENV_NAME}) environment active.'"
+    else
+        exec bash --rcfile <(echo "source ~/.bashrc; conda activate ${ENV_PATH}; echo -e '${GREEN}(${ENV_NAME}) environment active.${NC}'")
+    fi
+fi
+
+####################################################################################
 echo -e "${GREEN}==================================================${NC}"
 echo -e "${GREEN}  Skyfall-GS (FlowEdit) Conda Environment Setup${NC}"
 echo -e "${GREEN}==================================================${NC}"
 
-####################################################################################
-#   Create conda environment
+# Remove old env if exists
 if [ -d "${ENV_PATH}" ]; then
-    echo -e "${YELLOW}Environment already exists at ${ENV_PATH}. Removing...${NC}"
+    echo -e "${YELLOW}Removing old environment...${NC}"
     conda env remove -p ${ENV_PATH} -y
 fi
 
 echo -e "${YELLOW}Creating conda environment: ${ENV_PATH} (python 3.10)${NC}"
 mkdir -p "$(dirname ${ENV_PATH})"
 conda create -p ${ENV_PATH} python=3.10 -y
-
 conda activate ${ENV_PATH}
+
+# HuggingFace cache → 4TB disk
+export HF_HOME=/media2/4tb/kevin/.cache/huggingface
+mkdir -p "$HF_HOME"
 
 ####################################################################################
 #   Install PyTorch (CUDA 12.1 — compatible with H100)
@@ -129,7 +153,10 @@ pip install --no-cache-dir \
 echo -e "${YELLOW}Building CUDA submodules...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+export CUDA_HOME=/usr/local/cuda-12.1
+export PATH=${CUDA_HOME}/bin:${PATH}
+export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+export TORCH_CUDA_ARCH_LIST="7.5"
 export FORCE_CUDA=1
 
 pip install --no-cache-dir --no-build-isolation "${SCRIPT_DIR}/submodules/diff-gaussian-rasterization-depth"
@@ -150,6 +177,10 @@ if [ -n "$MISSING" ]; then
 else
     echo -e "${GREEN}All system libraries present${NC}"
 fi
+
+####################################################################################
+#   Save hash for future runs
+echo "$CURRENT_HASH" > "${HASH_FILE}"
 
 echo ""
 echo -e "${GREEN}==================================================${NC}"

@@ -55,6 +55,8 @@ def parse_args():
     parser.add_argument("--method", type=str, default="flowedit",
                         choices=["flowedit", "kontext"],
                         help="Refinement method (default: flowedit)")
+    parser.add_argument("--model", type=str, default="black-forest-labs/FLUX.1-dev",
+                        help="HuggingFace model ID (default: black-forest-labs/FLUX.1-dev)")
     parser.add_argument("--gpus", type=str, default=None,
                         help="Comma-separated GPU IDs. Auto-detect if omitted.")
     parser.add_argument("--input", type=str, required=True)
@@ -117,10 +119,9 @@ def flowedit_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
         if mask is not None:
             img[mask] = 0
 
-    print(f"[GPU {gpu_id}] Loading FLUX model...")
-    pipe = FluxPipeline.from_pretrained(
-        "black-forest-labs/FLUX.1-dev", torch_dtype=torch.float16
-    )
+    model_id = args.model
+    print(f"[GPU {gpu_id}] Loading FLUX model ({model_id})...")
+    pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
     pipe.enable_model_cpu_offload(device=device)
     scheduler = pipe.scheduler
     print(f"[GPU {gpu_id}] Model loaded. Processing {len(tile_list)} tiles.")
@@ -290,10 +291,9 @@ def main():
             from diffusers import FluxPipeline
             from refine_geotiff import refine_tile
 
-            print(f"Loading FLUX model on {device}...")
-            pipe = FluxPipeline.from_pretrained(
-                "black-forest-labs/FLUX.1-dev", torch_dtype=torch.float16
-            )
+            model_id = args.model
+            print(f"Loading FLUX model ({model_id}) on {device}...")
+            pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
             pipe.enable_model_cpu_offload(device=device)
             scheduler = pipe.scheduler
             print("FLUX model loaded.")

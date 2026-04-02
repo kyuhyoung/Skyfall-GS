@@ -47,6 +47,8 @@ def parse_args():
                         help="Random seed for reproducibility (default: 42)")
     parser.add_argument("--no_stretch", action="store_true",
                         help="Skip preprocessing (for multi-pass: input already processed)")
+    parser.add_argument("--model", type=str, default="black-forest-labs/FLUX.1-dev",
+                        help="HuggingFace model ID (default: black-forest-labs/FLUX.1-dev)")
     parser.add_argument("--device", type=str, default="cuda:0")
     return parser.parse_args()
 
@@ -137,8 +139,9 @@ def main():
     print(f"Processing {len(tiles)} tiles (tile_size={args.tile_size}, overlap={args.overlap})")
 
     # Load FLUX
-    print("Loading FLUX model...")
-    pipe = FluxPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.float16)
+    model_id = args.model
+    print(f"Loading FLUX model ({model_id})...")
+    pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
     pipe.enable_model_cpu_offload(device=args.device)
     scheduler = pipe.scheduler
     print("FLUX model loaded.")
