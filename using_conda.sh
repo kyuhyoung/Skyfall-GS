@@ -14,7 +14,7 @@
 set -e
 
 # Log file (timestamped per run)
-LOGDIR="$(cd "$(dirname "$0")/.." && pwd)/logs"
+LOGDIR="$(dirname "$0")/logs"
 mkdir -p "$LOGDIR"
 LOGFILE="${LOGDIR}/using_conda_$(date '+%Y%m%d_%H%M%S').log"
 
@@ -151,7 +151,7 @@ pip install --no-cache-dir \
 ####################################################################################
 #   Build CUDA submodules
 echo -e "${YELLOW}Building CUDA submodules...${NC}"
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 export CUDA_HOME=/usr/local/cuda-12.1
 export PATH=${CUDA_HOME}/bin:${PATH}
