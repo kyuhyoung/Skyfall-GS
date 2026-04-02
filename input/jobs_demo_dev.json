@@ -1,0 +1,11 @@
+[
+  {
+    "T_steps": 28,
+    "n_min": 1,
+    "n_max": 6,
+    "tar_guidance": 4.5,
+    "src_guidance": 1.0,
+    "start_pass": 1,
+    "end_pass": 3
+  }
+]

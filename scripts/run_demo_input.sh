@@ -38,7 +38,7 @@ DEV_DIR="${OUTPUT_DIR}/dev"
 mkdir -p "$DEV_DIR"
 
 $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
-    --job_file "${SCRIPT_DIR}/output/jobs_demo_dev.json" \
+    --job_file "${SCRIPT_DIR}/input/jobs_demo_dev.json" \
     --input "$INPUT" \
     --output_dir "$DEV_DIR" \
     --tile_size "$TILE_SIZE" \
@@ -65,7 +65,7 @@ SCHNELL_DIR="${OUTPUT_DIR}/schnell"
 mkdir -p "$SCHNELL_DIR"
 
 $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
-    --job_file "${SCRIPT_DIR}/output/jobs_demo_schnell.json" \
+    --job_file "${SCRIPT_DIR}/input/jobs_demo_schnell.json" \
     --input "$INPUT" \
     --output_dir "$SCHNELL_DIR" \
     --tile_size "$TILE_SIZE" \

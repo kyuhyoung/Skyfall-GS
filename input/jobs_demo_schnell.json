@@ -1,0 +1,9 @@
+[
+  {
+    "T_steps": 8,
+    "n_min": 1,
+    "n_max": 3,
+    "start_pass": 1,
+    "end_pass": 2
+  }
+]
