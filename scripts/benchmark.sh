@@ -10,7 +10,7 @@
 #   ./benchmark.sh                    # auto-detect GPUs
 #   ./benchmark.sh --gpus 0,1,2,3     # specify GPUs
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BENCH_DIR="${SCRIPT_DIR}/output/benchmark_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$BENCH_DIR"
 

@@ -1,16 +1,19 @@
 #!/bin/bash
 
-# FlowEdit schnell 3rd batch
-# 18 TIFs (12 eval + 6 prereq) — ts07, ts09, copies existing prereqs from prev runs
+# FlowEdit dev T_steps pivot grid search
+# Pivot (nmin=1,nmax=6,tg=4.5,sg=1.0) + axis sweeps for tstep heatmaps
+# 28 jobs → 88 TIFs generated (34 needed for heatmaps fe_01~05)
 #
+# All workers share a single job queue with file locking.
+# Free GPUs are detected per-round; if a GPU becomes available later, it joins automatically.
 # RAM-safe: measures peak RAM on first tile, auto-limits worker count.
 #
 # Usage:
-#   ./grid_search_schnell_extra4.sh
-#   ./grid_search_schnell_extra4.sh --gpus 1,2,3
+#   ./grid_search_dev_tsteps_pivot.sh
+#   ./grid_search_dev_tsteps_pivot.sh --gpus 1,2,3
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra4_$(date '+%Y%m%d_%H%M%S')"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/output/grid_dev_tsteps_pivot_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
 LOGFILE="${OUTPUT_DIR}/grid_search.log"
@@ -47,7 +50,7 @@ export PYTHONUNBUFFERED=1
 
 INPUT="/media2/data/dataset_stereo/satelite/korea/seoul/gangnam/samsung/fused_top_naive.tif"
 
-MODEL="black-forest-labs/FLUX.1-schnell"
+MODEL="black-forest-labs/FLUX.1-dev"
 GAMMA=0.7
 TILE_SIZE=1024
 OVERLAP=128
@@ -55,8 +58,7 @@ OVERLAP=128
 SRC_PROMPT="Satellite image with black missing regions, noise, blurring, and low resolution"
 TAR_PROMPT="Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors"
 
-JOB_FILE="${SCRIPT_DIR}/output/jobs_schnell_extra4.json"
-
+JOB_FILE="${SCRIPT_DIR}/output/jobs_dev_tsteps_pivot.json"
 
 # --------------- Create shared job queue ---------------
 QUEUE_FILE="${OUTPUT_DIR}/job_queue.json"
@@ -75,13 +77,13 @@ with open('${QUEUE_FILE}', 'w') as f:
 touch "$QUEUE_LOCK"
 
 TOTAL_JOBS=$($PYTHON -c "import json; print(len(json.load(open('${QUEUE_FILE}'))))")
-TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',2)-j.get('start_pass',1)+1 for j in json.load(open('${QUEUE_FILE}'))))")
+TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',4)-j.get('start_pass',1)+1 for j in json.load(open('${QUEUE_FILE}'))))")
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
-echo -e "${CYAN}  FlowEdit Schnell Extra Grid Search${NC}"
-echo -e "${CYAN}  18 TIFs (12 eval + 6 prereq) — ts07, ts09${NC}"
-echo -e "${CYAN}  No tg/sg (schnell ignores guidance)${NC}"
+echo -e "${CYAN}  FlowEdit Dev T_steps Pivot Grid Search${NC}"
+echo -e "${CYAN}  Pivot: nmin=1, nmax=6, tg=4.5, sg=1.0${NC}"
+echo -e "${CYAN}  + axis sweeps for heatmaps fe_01~05${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "Model: ${MODEL}"
@@ -271,7 +273,7 @@ print(f'{effective:.1f} {thresh:.1f}')
             echo -e "${CYAN}  Effective available: ${EFF_AVAIL}GB (worst ${WORST_AVAIL}GB - ${MODELS_LOADED} × ${FIRST_PEAK}GB)${NC}"
         elif [ "$CHECK_STATUS" = "RAM_LOW" ]; then
             echo -e "${RED}[SKIP] GPU ${GPU_ID}: RAM too low (${CHECK_RAM}GB < ${CHECK_THRESH}GB needed). Stopping launches for this round.${NC}"
-            break
+            break  # RAM이 부족하면 이후 GPU도 안 됨
         fi
 
         # Check if there are still pending jobs (other workers may have taken them all)
@@ -292,7 +294,7 @@ print(f'{effective:.1f} {thresh:.1f}')
             --tile_size "$TILE_SIZE" \
             --overlap "$OVERLAP" \
             --gamma "$GAMMA" \
-            --max_pass 2 \
+            --max_pass 5 \
             --model "$MODEL" \
             --device "cuda:${GPU_ID}" \
             --src_prompt "$SRC_PROMPT" \

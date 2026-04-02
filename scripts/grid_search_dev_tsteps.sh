@@ -1,19 +1,18 @@
 #!/bin/bash
 
-# FlowEdit dev T_steps pivot grid search
-# Pivot (nmin=1,nmax=6,tg=4.5,sg=1.0) + axis sweeps for tstep heatmaps
-# 28 jobs → 88 TIFs generated (34 needed for heatmaps fe_01~05)
+# FlowEdit dev T_steps grid search
+# T_steps=[24,32] × nmin=[0,2] × nmax=[5,7] × tg=[4.0,5.0] × sg=[0.75,1.25] × pass=1-4
+# 32 combos × 4 passes = 128 TIFs
 #
 # All workers share a single job queue with file locking.
 # Free GPUs are detected per-round; if a GPU becomes available later, it joins automatically.
-# RAM-safe: measures peak RAM on first tile, auto-limits worker count.
 #
 # Usage:
-#   ./grid_search_dev_tsteps_pivot.sh
-#   ./grid_search_dev_tsteps_pivot.sh --gpus 1,2,3
+#   ./grid_search_dev_tsteps.sh
+#   ./grid_search_dev_tsteps.sh --gpus 1,2,3
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output/grid_dev_tsteps_pivot_$(date '+%Y%m%d_%H%M%S')"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/output/grid_dev_tsteps_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
 LOGFILE="${OUTPUT_DIR}/grid_search.log"
@@ -58,7 +57,7 @@ OVERLAP=128
 SRC_PROMPT="Satellite image with black missing regions, noise, blurring, and low resolution"
 TAR_PROMPT="Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors"
 
-JOB_FILE="${SCRIPT_DIR}/output/jobs_dev_tsteps_pivot.json"
+JOB_FILE="${SCRIPT_DIR}/output/jobs_dev_tsteps.json"
 
 # --------------- Create shared job queue ---------------
 QUEUE_FILE="${OUTPUT_DIR}/job_queue.json"
@@ -81,9 +80,9 @@ TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',4)-j.get('start
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
-echo -e "${CYAN}  FlowEdit Dev T_steps Pivot Grid Search${NC}"
-echo -e "${CYAN}  Pivot: nmin=1, nmax=6, tg=4.5, sg=1.0${NC}"
-echo -e "${CYAN}  + axis sweeps for heatmaps fe_01~05${NC}"
+echo -e "${CYAN}  FlowEdit Dev T_steps Grid Search${NC}"
+echo -e "${CYAN}  T_steps=[24,32] × nmin=[0,2] × nmax=[5,7]${NC}"
+echo -e "${CYAN}  tg=[4.0,5.0] × sg=[0.75,1.25] × pass=1-4${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "Model: ${MODEL}"
@@ -294,7 +293,7 @@ print(f'{effective:.1f} {thresh:.1f}')
             --tile_size "$TILE_SIZE" \
             --overlap "$OVERLAP" \
             --gamma "$GAMMA" \
-            --max_pass 5 \
+            --max_pass 4 \
             --model "$MODEL" \
             --device "cuda:${GPU_ID}" \
             --src_prompt "$SRC_PROMPT" \

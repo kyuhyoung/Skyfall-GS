@@ -13,7 +13,7 @@
 #   ./run_refine.sh --method kontext --gpus 4,5,6,7 --passes 1
 
 # Log file
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "${SCRIPT_DIR}/output"
 LOGFILE="${SCRIPT_DIR}/output/run_refine.log"
 exec > >(stdbuf -oL tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' > "$LOGFILE")) 2>&1

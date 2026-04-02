@@ -7,7 +7,7 @@
 #   ./run_refine_grid.sh --dry-run    # print commands without running
 
 # Log file
-SCRIPT_DIR_LOG="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR_LOG="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "${SCRIPT_DIR_LOG}/output"
 LOGFILE="${SCRIPT_DIR_LOG}/output/run_refine_grid.log"
 exec > >(stdbuf -oL tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' > "$LOGFILE")) 2>&1
@@ -26,7 +26,7 @@ done
 INPUT="/data/dataset/sat/korea/seoul/samsung/fused_top_naive.tif"
 INPUT_DIR="$(dirname "$INPUT")"
 INPUT_STEM="$(basename "$INPUT" .tif)"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/output/flux_grid_search"
 mkdir -p "$OUTPUT_DIR"
 
@@ -69,7 +69,7 @@ for NMIN in "${N_MIN_VALUES[@]}"; do
             continue
         fi
 
-        python refine_geotiff.py \
+        python "${SCRIPT_DIR}/refine_geotiff.py" \
             --input "$INPUT" \
             --output "$OUTPUT" \
             --tile_size 1024 \

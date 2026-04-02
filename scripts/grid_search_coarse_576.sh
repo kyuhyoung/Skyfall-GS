@@ -9,7 +9,7 @@
 #   ./grid_search_coarse_576.sh --gpus 0,1,2,3,4,5,6,7
 #   ./grid_search_coarse_576.sh --max_concurrent 4
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/output/grid_coarse_576_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 

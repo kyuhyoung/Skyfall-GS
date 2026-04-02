@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# FlowEdit fine grid: 24 jobs = 68 TIFs
-# 5 GPU 병렬, start_pass/end_pass 지원
+# FlowEdit + FLUX.1-schnell coarse grid search
+# Phase 1: pass=1 only, 128 combos
+#   T_steps=[4,8] × n_min=[0,1] × n_max=[1,2,3,4] (n_min<n_max) × tg=[3.0,4.0,4.5,5.0] × sg=[0.5,1.0]
 #
 # Usage:
-#   ./grid_search_fine_68.sh
-#   ./grid_search_fine_68.sh --gpus 0,1,2,3,4
+#   ./grid_search_schnell.sh
+#   ./grid_search_schnell.sh --gpus 0,1,2,3,4
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output/grid_fine_68"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
 LOGFILE="${OUTPUT_DIR}/grid_search.log"
@@ -37,6 +38,7 @@ NUM_GPUS=${#GPU_IDS[@]}
 
 export HF_HOME=/media2/4tb/kevin/.cache/huggingface
 export HF_HUB_OFFLINE=1
+export PYTHONUNBUFFERED=1
 
 PYTHON="/media2/4tb/kevin/envs/skyfall/bin/python"
 if [ ! -f "$PYTHON" ]; then
@@ -44,40 +46,73 @@ if [ ! -f "$PYTHON" ]; then
 fi
 INPUT="/media2/data/dataset_stereo/satelite/korea/seoul/gangnam/samsung/fused_top_naive.tif"
 
-T_STEPS=28
+MODEL="black-forest-labs/FLUX.1-schnell"
 GAMMA=0.7
 TILE_SIZE=1024
 OVERLAP=128
+MAX_PASS=1
 SRC_PROMPT="Satellite image with black missing regions, noise, blurring, and low resolution"
 TAR_PROMPT="Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors"
 
-JOB_FILE="${OUTPUT_DIR}/jobs.json"
-TOTAL_JOBS=$($PYTHON -c "import json; print(len(json.load(open('${JOB_FILE}'))))")
-TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',4)-j.get('start_pass',1)+1 for j in json.load(open('${JOB_FILE}'))))")
-
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
-echo -e "${CYAN}  FlowEdit Fine Grid (${TOTAL_JOBS} jobs, ${TOTAL_TIFS} TIFs)${NC}"
+echo -e "${CYAN}  FlowEdit + FLUX.1-schnell Coarse Grid Search${NC}"
+echo -e "${CYAN}  T_steps=[4,8] × n_min=[0,1] × n_max=[1,2,3,4]${NC}"
+echo -e "${CYAN}  tg=[3.0,4.0,4.5,5.0] × sg=[0.5,1.0]${NC}"
+echo -e "${CYAN}  pass=1 only (coarse)${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Model: ${MODEL}"
 echo "GPUs: ${GPUS} (${NUM_GPUS} total)"
 echo "Output dir: ${OUTPUT_DIR}"
 echo ""
 
-# Split jobs into per-GPU job files (round-robin)
+# Build combo list
+# T_steps is not a grid_worker param — need separate runs per T_steps
+# grid_worker takes --T_steps, so we encode T_steps in the job and handle via separate worker groups
+
+COMBOS_JSON="["
+FIRST=true
+for T_STEPS in 4 8; do
+    for NMIN in 0 1; do
+        for NMAX in 1 2 3 4; do
+            if [ "$NMIN" -ge "$NMAX" ]; then
+                continue
+            fi
+            for TG in 3.0 4.0 4.5 5.0; do
+                for SG in 0.5 1.0; do
+                    if [ "$FIRST" = true ]; then
+                        FIRST=false
+                    else
+                        COMBOS_JSON+=","
+                    fi
+                    COMBOS_JSON+="{\"n_min\":${NMIN},\"n_max\":${NMAX},\"tar_guidance\":${TG},\"src_guidance\":${SG},\"T_steps\":${T_STEPS}}"
+                done
+            done
+        done
+    done
+done
+COMBOS_JSON+="]"
+
+TOTAL_COMBOS=$(echo "$COMBOS_JSON" | $PYTHON -c "import sys,json; print(len(json.load(sys.stdin)))")
+echo "Total combos: ${TOTAL_COMBOS} (× ${MAX_PASS} pass = ${TOTAL_COMBOS} TIFs)"
+echo "Strategy: ${NUM_GPUS} workers, model loaded once per GPU"
+echo ""
+
+# Split combos into per-GPU job files (round-robin)
 for ((g=0; g<NUM_GPUS; g++)); do
     GPU_ID=${GPU_IDS[$g]}
-    GPU_JOB_FILE="${OUTPUT_DIR}/jobs_gpu${GPU_ID}.json"
-    cat "$JOB_FILE" | $PYTHON -c "
+    JOB_FILE="${OUTPUT_DIR}/jobs_gpu${GPU_ID}.json"
+    echo "$COMBOS_JSON" | $PYTHON -c "
 import sys, json
-jobs = json.load(sys.stdin)
+combos = json.load(sys.stdin)
 gpu_idx = ${g}
 num_gpus = ${NUM_GPUS}
-my_jobs = [jobs[i] for i in range(gpu_idx, len(jobs), num_gpus)]
+my_jobs = [combos[i] for i in range(gpu_idx, len(combos), num_gpus)]
 json.dump(my_jobs, sys.stdout, indent=2)
-" > "$GPU_JOB_FILE"
-    N_JOBS=$($PYTHON -c "import json; print(len(json.load(open('${GPU_JOB_FILE}'))))")
-    echo -e "${YELLOW}GPU ${GPU_ID}: ${N_JOBS} jobs → ${GPU_JOB_FILE}${NC}"
+" > "$JOB_FILE"
+    N_JOBS=$($PYTHON -c "import json; print(len(json.load(open('${JOB_FILE}'))))")
+    echo -e "${YELLOW}GPU ${GPU_ID}: ${N_JOBS} combos → ${JOB_FILE}${NC}"
 done
 echo ""
 
@@ -87,20 +122,20 @@ FAILED=0
 PIDS=()
 for ((g=0; g<NUM_GPUS; g++)); do
     GPU_ID=${GPU_IDS[$g]}
-    GPU_JOB_FILE="${OUTPUT_DIR}/jobs_gpu${GPU_ID}.json"
+    JOB_FILE="${OUTPUT_DIR}/jobs_gpu${GPU_ID}.json"
     WORKER_LOG="${OUTPUT_DIR}/worker_gpu${GPU_ID}.log"
 
     echo -e "${GREEN}Launching worker on GPU ${GPU_ID}...${NC}"
 
-    $PYTHON "${SCRIPT_DIR}/grid_worker.py" \
-        --job_file "$GPU_JOB_FILE" \
+    $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
+        --job_file "$JOB_FILE" \
         --input "$INPUT" \
         --output_dir "$OUTPUT_DIR" \
         --tile_size "$TILE_SIZE" \
         --overlap "$OVERLAP" \
-        --T_steps "$T_STEPS" \
         --gamma "$GAMMA" \
-        --max_pass 5 \
+        --max_pass "$MAX_PASS" \
+        --model "$MODEL" \
         --device "cuda:${GPU_ID}" \
         --src_prompt "$SRC_PROMPT" \
         --tar_prompt "$TAR_PROMPT" \
@@ -133,6 +168,6 @@ echo -e "${CYAN}  Grid Search Complete${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Total time: ${T_ELAPSED}s ($(echo "scale=1; ${T_ELAPSED}/60" | bc)min)"
 echo "Workers failed: ${FAILED}/${NUM_GPUS}"
-echo "TIFs: $(ls "${OUTPUT_DIR}"/*.tif 2>/dev/null | wc -l)"
+echo "TIFs: $(ls "${OUTPUT_DIR}"/*.tif 2>/dev/null | wc -l) / ${TOTAL_COMBOS}"
 echo ""
 echo "Finished: $(date '+%Y-%m-%d %H:%M:%S')"

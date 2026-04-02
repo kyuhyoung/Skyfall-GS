@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 export HF_HOME=/media2/4tb/kevin/.cache/huggingface
@@ -9,18 +9,32 @@ export PYTHONUNBUFFERED=1
 
 PYTHON="/media2/4tb/kevin/envs/skyfall/bin/python"
 OUTPUT_DIR="output/grid_schnell_20260401_154140"
+JOB_FILE="${OUTPUT_DIR}/jobs_remaining6.json"
 
-echo '[{"n_min":0,"n_max":4,"tar_guidance":4.5,"src_guidance":0.5,"T_steps":8}]' > "$OUTPUT_DIR/jobs_last_gpu5.json"
-echo '[{"n_min":1,"n_max":4,"tar_guidance":3.0,"src_guidance":0.5,"T_steps":8}]' > "$OUTPUT_DIR/jobs_last_gpu6.json"
-echo '[{"n_min":1,"n_max":3,"tar_guidance":4.0,"src_guidance":1.0,"T_steps":8}]' > "$OUTPUT_DIR/jobs_last_gpu7.json"
+GPUS=(0 1 3 4)
+NUM_GPUS=${#GPUS[@]}
+
+# Split into per-GPU job files
+for ((g=0; g<NUM_GPUS; g++)); do
+    GPU_ID=${GPUS[$g]}
+    GPU_JOB="${OUTPUT_DIR}/jobs_remaining_gpu${GPU_ID}.json"
+    cat "$JOB_FILE" | $PYTHON -c "
+import sys, json
+jobs = json.load(sys.stdin)
+my_jobs = [jobs[i] for i in range(${g}, len(jobs), ${NUM_GPUS})]
+json.dump(my_jobs, sys.stdout, indent=2)
+" > "$GPU_JOB"
+    echo "GPU ${GPU_ID}: $($PYTHON -c "import json; print(len(json.load(open('${GPU_JOB}'))))")  jobs"
+done
 
 PIDS=()
-for GPU_ID in 5 6 7; do
-    JOB="$OUTPUT_DIR/jobs_last_gpu${GPU_ID}.json"
-    LOG="$OUTPUT_DIR/worker_last_gpu${GPU_ID}.log"
+for ((g=0; g<NUM_GPUS; g++)); do
+    GPU_ID=${GPUS[$g]}
+    GPU_JOB="${OUTPUT_DIR}/jobs_remaining_gpu${GPU_ID}.json"
+    LOG="${OUTPUT_DIR}/worker_remaining_gpu${GPU_ID}.log"
 
     $PYTHON -u grid_worker.py \
-        --job_file "$JOB" \
+        --job_file "$GPU_JOB" \
         --input /media2/data/dataset_stereo/satelite/korea/seoul/gangnam/samsung/fused_top_naive.tif \
         --output_dir "$OUTPUT_DIR" \
         --tile_size 1024 --overlap 128 --gamma 0.7 --max_pass 1 \
@@ -31,17 +45,20 @@ for GPU_ID in 5 6 7; do
         > "$LOG" 2>&1 &
 
     PIDS+=($!)
-    echo "Launched GPU ${GPU_ID}"
+    echo "Launched GPU ${GPU_ID} (PID ${PIDS[-1]})"
 done
 
 echo "Waiting..."
-for i in 0 1 2; do
-    GPU_ID=$((5 + i))
-    if ! wait "${PIDS[$i]}"; then
+FAILED=0
+for ((g=0; g<NUM_GPUS; g++)); do
+    GPU_ID=${GPUS[$g]}
+    if ! wait "${PIDS[$g]}"; then
         echo "GPU ${GPU_ID} FAILED"
+        FAILED=$((FAILED + 1))
     else
         echo "GPU ${GPU_ID} done"
     fi
 done
 
+echo "Complete. Failed: ${FAILED}/${NUM_GPUS}"
 echo "TIFs: $(ls ${OUTPUT_DIR}/*.tif 2>/dev/null | wc -l) / 112"

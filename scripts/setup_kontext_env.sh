@@ -5,7 +5,7 @@
 
 set -e
 
-LOGDIR="$(dirname "$0")/logs"
+LOGDIR="$(cd "$(dirname "$0")/.." && pwd)/logs"
 mkdir -p "$LOGDIR"
 LOGFILE="${LOGDIR}/setup_kontext_$(date '+%Y%m%d_%H%M%S').log"
 exec > >(stdbuf -oL tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' >> "$LOGFILE")) 2>&1

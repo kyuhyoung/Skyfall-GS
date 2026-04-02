@@ -4,7 +4,7 @@
 # pass 1-4 results should already exist in grid_coarse_pass output
 # This runs pass 5 and 6 on top of pass 4
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Find existing pass4 result
 GRID_DIR=$(ls -dt "${SCRIPT_DIR}/output/grid_coarse_pass_"*/ 2>/dev/null | head -1)

@@ -9,7 +9,7 @@
 #   ./grid_search_schnell_extra3.sh
 #   ./grid_search_schnell_extra3.sh --gpus 1,2,3
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra3_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 

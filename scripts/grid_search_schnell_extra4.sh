@@ -1,18 +1,16 @@
 #!/bin/bash
 
-# FlowEdit schnell extra grid search
-# 8 additional TIFs needed for heatmaps fes_02, fes_05, fes_06, fes_09
-# 7 jobs → 11 TIFs generated (no tg/sg for schnell)
+# FlowEdit schnell 3rd batch
+# 18 TIFs (12 eval + 6 prereq) — ts07, ts09, copies existing prereqs from prev runs
 #
-# All workers share a single job queue with file locking.
 # RAM-safe: measures peak RAM on first tile, auto-limits worker count.
 #
 # Usage:
-#   ./grid_search_schnell_extra.sh
-#   ./grid_search_schnell_extra.sh --gpus 1,2,3
+#   ./grid_search_schnell_extra4.sh
+#   ./grid_search_schnell_extra4.sh --gpus 1,2,3
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra2_$(date '+%Y%m%d_%H%M%S')"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra4_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
 LOGFILE="${OUTPUT_DIR}/grid_search.log"
@@ -57,7 +55,8 @@ OVERLAP=128
 SRC_PROMPT="Satellite image with black missing regions, noise, blurring, and low resolution"
 TAR_PROMPT="Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors"
 
-JOB_FILE="${SCRIPT_DIR}/output/jobs_schnell_extra2.json"
+JOB_FILE="${SCRIPT_DIR}/output/jobs_schnell_extra4.json"
+
 
 # --------------- Create shared job queue ---------------
 QUEUE_FILE="${OUTPUT_DIR}/job_queue.json"
@@ -81,7 +80,7 @@ TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',2)-j.get('start
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
 echo -e "${CYAN}  FlowEdit Schnell Extra Grid Search${NC}"
-echo -e "${CYAN}  17 TIFs extra for schnell heatmaps${NC}"
+echo -e "${CYAN}  18 TIFs (12 eval + 6 prereq) — ts07, ts09${NC}"
 echo -e "${CYAN}  No tg/sg (schnell ignores guidance)${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"

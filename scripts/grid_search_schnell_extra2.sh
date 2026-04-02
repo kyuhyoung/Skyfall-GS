@@ -1,13 +1,18 @@
 #!/bin/bash
 
-# FlowEdit schnell — single: ts08_nmin01_nmax03_pass4
-# Copies pass1-3 prereqs from previous runs.
+# FlowEdit schnell extra grid search
+# 8 additional TIFs needed for heatmaps fes_02, fes_05, fes_06, fes_09
+# 7 jobs → 11 TIFs generated (no tg/sg for schnell)
+#
+# All workers share a single job queue with file locking.
+# RAM-safe: measures peak RAM on first tile, auto-limits worker count.
 #
 # Usage:
-#   ./grid_search_schnell_extra5.sh
+#   ./grid_search_schnell_extra.sh
+#   ./grid_search_schnell_extra.sh --gpus 1,2,3
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra5_$(date '+%Y%m%d_%H%M%S')"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/output/grid_schnell_extra2_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
 LOGFILE="${OUTPUT_DIR}/grid_search.log"
@@ -52,26 +57,7 @@ OVERLAP=128
 SRC_PROMPT="Satellite image with black missing regions, noise, blurring, and low resolution"
 TAR_PROMPT="Complete high resolution satellite image with all areas naturally filled with buildings, roads, and vegetation, sharp details and vivid colors"
 
-JOB_FILE="${SCRIPT_DIR}/output/jobs_schnell_extra5.json"
-
-# --------------- Copy prereq pass1-3 from previous runs ---------------
-echo -e "${CYAN}Copying prereq TIFs (pass1-3)...${NC}"
-PREREQS=(
-    "grid_schnell_extra2_20260402_045017/ts08_nmin01_nmax03_pass1.tif"
-    "grid_schnell_extra2_20260402_045017/ts08_nmin01_nmax03_pass2.tif"
-    "grid_schnell_extra3_20260402_055534/ts08_nmin01_nmax03_pass3.tif"
-)
-for P in "${PREREQS[@]}"; do
-    SRC="${SCRIPT_DIR}/output/${P}"
-    if [ -f "$SRC" ]; then
-        cp "$SRC" "$OUTPUT_DIR/"
-        echo "  $(basename $SRC)"
-    else
-        echo -e "${RED}  MISSING: $SRC${NC}"
-    fi
-done
-echo ""
-
+JOB_FILE="${SCRIPT_DIR}/output/jobs_schnell_extra2.json"
 
 # --------------- Create shared job queue ---------------
 QUEUE_FILE="${OUTPUT_DIR}/job_queue.json"
@@ -95,7 +81,7 @@ TOTAL_TIFS=$($PYTHON -c "import json; print(sum(j.get('end_pass',2)-j.get('start
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
 echo -e "${CYAN}  FlowEdit Schnell Extra Grid Search${NC}"
-echo -e "${CYAN}  ts08_nmin01_nmax03_pass4 (single TIF)${NC}"
+echo -e "${CYAN}  17 TIFs extra for schnell heatmaps${NC}"
 echo -e "${CYAN}  No tg/sg (schnell ignores guidance)${NC}"
 echo -e "${CYAN}==============================================================${NC}"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"

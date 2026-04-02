@@ -4,7 +4,7 @@
 # dev:     ts28_nmin01_nmax06_tg4.5_sg1.00_pass3
 # schnell: ts08_nmin01_nmax03_pass2
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/output/demo_input_$(date '+%Y%m%d_%H%M%S')"
 mkdir -p "$OUTPUT_DIR"
 
