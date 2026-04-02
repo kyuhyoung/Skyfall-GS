@@ -261,8 +261,7 @@ def process_job(pipe, scheduler, src_img, tiles, profile, args, job, job_label,
         tag_base = f"nmin{n_min:02d}_nmax{n_max:02d}_tg{tg:.1f}_sg{sg:.2f}"
     else:
         tag_base = f"nmin{n_min:02d}_nmax{n_max:02d}"
-    if job_T_steps != args.T_steps:
-        tag_base = f"ts{job_T_steps:02d}_{tag_base}"
+    tag_base = f"ts{job_T_steps:02d}_{tag_base}"
 
     start_pass = job.get("start_pass", 1)
     end_pass = job.get("end_pass", args.max_pass)

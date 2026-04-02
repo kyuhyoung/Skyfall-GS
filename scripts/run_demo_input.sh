@@ -14,7 +14,7 @@ exec > >(stdbuf -oL tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' > "$LOGFILE")) 2>
 
 PYTHON="/data/kevin_workspace/envs/skyfall/bin/python"
 export HF_HOME=/home/kevin/.cache/huggingface
-export HF_HUB_OFFLINE=1
+# export HF_HUB_OFFLINE=1
 export PYTHONUNBUFFERED=1
 
 INPUT="${SCRIPT_DIR}/input/samsung_8_dense_0331_fix11_ldn02_s1c02_s301_albedo0_shadow0_noeval_i3000.tif"
