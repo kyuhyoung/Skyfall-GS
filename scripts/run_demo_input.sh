@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Run FlowEdit dev + schnell on input/samsung TIF, GPU 5 only
-# dev:     ts28_nmin01_nmax06_tg4.5_sg1.00_pass3
-# schnell: ts08_nmin01_nmax03_pass2
+# Run FlowEdit dev + schnell on input/samsung TIF
+# dev:     GPU 6, ts28_nmin01_nmax06_tg4.5_sg1.00_pass3
+# schnell: GPU 7, ts08_nmin01_nmax03_pass2
+# Both run in parallel
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/output/demo_input_$(date '+%Y%m%d_%H%M%S')"
@@ -11,13 +12,12 @@ mkdir -p "$OUTPUT_DIR"
 LOGFILE="${OUTPUT_DIR}/run.log"
 exec > >(stdbuf -oL tee >(stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' > "$LOGFILE")) 2>&1
 
-PYTHON="/media2/4tb/kevin/envs/skyfall/bin/python"
-export HF_HOME=/media2/4tb/kevin/.cache/huggingface
+PYTHON="/data/kevin_workspace/envs/skyfall/bin/python"
+export HF_HOME=/home/kevin/.cache/huggingface
 export HF_HUB_OFFLINE=1
 export PYTHONUNBUFFERED=1
 
 INPUT="${SCRIPT_DIR}/input/samsung_8_dense_0331_fix11_ldn02_s1c02_s301_albedo0_shadow0_noeval_i3000.tif"
-DEVICE="cuda:5"
 TILE_SIZE=1024
 OVERLAP=128
 GAMMA=0.7
@@ -27,15 +27,15 @@ TAR_PROMPT="Complete high resolution satellite image with all areas naturally fi
 
 T_START=$(date +%s)
 
-# ---- 1) Dev: ts28_nmin01_nmax06_tg4.5_sg1.00_pass1-3 ----
+# ---- 1) Dev: GPU 6 ----
+DEV_DIR="${OUTPUT_DIR}/dev"
+mkdir -p "$DEV_DIR"
+
 echo "============================================"
-echo "  [1/2] FlowEdit Dev (FLUX.1-dev)"
+echo "  [1/2] FlowEdit Dev (FLUX.1-dev) — GPU 6"
 echo "  ts28_nmin01_nmax06_tg4.5_sg1.00_pass1-3"
 echo "============================================"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
-
-DEV_DIR="${OUTPUT_DIR}/dev"
-mkdir -p "$DEV_DIR"
 
 $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
     --job_file "${SCRIPT_DIR}/input/jobs_demo_dev.json" \
@@ -46,23 +46,20 @@ $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
     --gamma "$GAMMA" \
     --max_pass 3 \
     --model "black-forest-labs/FLUX.1-dev" \
-    --device "$DEVICE" \
+    --device "cuda:6" \
     --src_prompt "$SRC_PROMPT" \
-    --tar_prompt "$TAR_PROMPT"
+    --tar_prompt "$TAR_PROMPT" &
+PID_DEV=$!
 
-echo ""
-echo "Dev finished: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
+# ---- 2) Schnell: GPU 7 ----
+SCHNELL_DIR="${OUTPUT_DIR}/schnell"
+mkdir -p "$SCHNELL_DIR"
 
-# ---- 2) Schnell: ts08_nmin01_nmax03_pass1-2 ----
 echo "============================================"
-echo "  [2/2] FlowEdit Schnell (FLUX.1-schnell)"
+echo "  [2/2] FlowEdit Schnell (FLUX.1-schnell) — GPU 7"
 echo "  ts08_nmin01_nmax03_pass1-2"
 echo "============================================"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
-
-SCHNELL_DIR="${OUTPUT_DIR}/schnell"
-mkdir -p "$SCHNELL_DIR"
 
 $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
     --job_file "${SCRIPT_DIR}/input/jobs_demo_schnell.json" \
@@ -73,10 +70,17 @@ $PYTHON -u "${SCRIPT_DIR}/grid_worker.py" \
     --gamma "$GAMMA" \
     --max_pass 2 \
     --model "black-forest-labs/FLUX.1-schnell" \
-    --device "$DEVICE" \
+    --device "cuda:7" \
     --src_prompt "$SRC_PROMPT" \
-    --tar_prompt "$TAR_PROMPT"
+    --tar_prompt "$TAR_PROMPT" &
+PID_SCHNELL=$!
 
+# Wait for both
+wait $PID_DEV
+echo ""
+echo "Dev finished: $(date '+%Y-%m-%d %H:%M:%S')"
+
+wait $PID_SCHNELL
 echo ""
 echo "Schnell finished: $(date '+%Y-%m-%d %H:%M:%S')"
 

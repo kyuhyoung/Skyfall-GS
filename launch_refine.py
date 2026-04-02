@@ -15,6 +15,19 @@ import sys
 import os
 import argparse
 import tempfile
+
+
+def auto_load_pipe(pipe, device):
+    """Auto: direct GPU if VRAM >= 30GB, else cpu_offload."""
+    gpu_idx = int(device.split(":")[-1]) if ":" in device else 0
+    vram_gb = torch.cuda.get_device_properties(gpu_idx).total_memory / (1024 ** 3)
+    if vram_gb >= 30:
+        pipe = pipe.to(device)
+        print(f"VRAM {vram_gb:.0f}GB → direct GPU load")
+    else:
+        pipe.enable_model_cpu_offload(device=device)
+        print(f"VRAM {vram_gb:.0f}GB → cpu_offload")
+    return pipe
 import shutil
 import time
 import numpy as np
@@ -122,7 +135,7 @@ def flowedit_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
     model_id = args.model
     print(f"[GPU {gpu_id}] Loading FLUX model ({model_id})...")
     pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-    pipe.enable_model_cpu_offload(device=device)
+    pipe = auto_load_pipe(pipe, device)
     scheduler = pipe.scheduler
     print(f"[GPU {gpu_id}] Model loaded. Processing {len(tile_list)} tiles.")
 
@@ -158,7 +171,7 @@ def kontext_worker_fn(gpu_id, tile_list, input_path, gamma, args, tmp_dir):
     pipe = FluxKontextPipeline.from_pretrained(
         "black-forest-labs/FLUX.1-Kontext-dev", torch_dtype=torch.bfloat16
     )
-    pipe.enable_model_cpu_offload(device=device)
+    pipe = auto_load_pipe(pipe, device)
     print(f"[GPU {gpu_id}] Model loaded. Processing {len(tile_list)} tiles.")
 
     for tile_idx, (y1, x1, y2, x2) in tile_list:
@@ -270,7 +283,7 @@ def main():
             pipe = FluxKontextPipeline.from_pretrained(
                 "black-forest-labs/FLUX.1-Kontext-dev", torch_dtype=torch.bfloat16
             )
-            pipe.enable_model_cpu_offload(device=device)
+            pipe = auto_load_pipe(pipe, device)
             print("Kontext model loaded.")
 
             from refine_geotiff_kontext import refine_tile as _refine_tile_kontext
@@ -294,7 +307,7 @@ def main():
             model_id = args.model
             print(f"Loading FLUX model ({model_id}) on {device}...")
             pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-            pipe.enable_model_cpu_offload(device=device)
+            pipe = auto_load_pipe(pipe, device)
             scheduler = pipe.scheduler
             print("FLUX model loaded.")
 

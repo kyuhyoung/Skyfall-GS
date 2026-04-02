@@ -329,7 +329,16 @@ def main():
     model_id = args.model
     print(f"[{args.device}] Loading FLUX model ({model_id})...")
     pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-    pipe.enable_model_cpu_offload(device=args.device)
+
+    # Auto: direct GPU if VRAM >= 30GB, else cpu_offload
+    gpu_idx = int(args.device.split(":")[-1]) if ":" in args.device else 0
+    vram_gb = torch.cuda.get_device_properties(gpu_idx).total_memory / (1024 ** 3)
+    if vram_gb >= 30:
+        pipe = pipe.to(args.device)
+        print(f"[{args.device}] VRAM {vram_gb:.0f}GB → direct GPU load")
+    else:
+        pipe.enable_model_cpu_offload(device=args.device)
+        print(f"[{args.device}] VRAM {vram_gb:.0f}GB → cpu_offload")
     scheduler = pipe.scheduler
 
     # Measure actual RAM consumed and update max
